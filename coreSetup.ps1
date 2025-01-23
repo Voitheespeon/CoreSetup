@@ -48,14 +48,12 @@ if (-NOT ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdent
 $apps = @("Mozilla.Firefox")
 $appsScopeRequired = @("Google.Chrome")
 $appThatNeedWingetSourceDeclared = @("Adobe Acrobat Reader DC")
-# Optional installs
-$optionalApps = @("SonicWALL.NetExtender", "Microsoft.Powershell", "tightvnc")
+$optionalApps = @("SonicWALL.NetExtender", "Microsoft.Powershell")
 $optionalAppsWithComplications = @("Microsoft 365")
-#dev installs
 $devApps = @("git.git", "vscode", "github desktop", "JanDeDobbeleer.OhMyPosh", "nvm-windows")
+$remoteAccessApps = @("tightvnc")
 
-# List of applications names to install. Note: uninstall uses name because the id cane change, install uses id
-# Uninstall applications
+# List of applications names to uninstall. Note: uninstall uses name because the id cane change, install uses id
 $appsToRemove = @(
     "Game Bar", 
     "LinkedIn", 
@@ -108,12 +106,42 @@ $dellAppsToRemove = @(
     "DB6EA5DB.PowerDirectorforDell_mcezb6ze687jp",
     "DB6EA5DB.PowerMediaPlayerforDell_mcezb6ze687jp"
 )
-
-# Define the progress title
+$hpAppsToRemove = @(
+    "HP Audio Switch",
+    "HP Documentation",
+    "HP JumpStart Bridge",
+    "HP JumpStart Launch",
+    "HP Support Assistant",
+    "HP System Event Utility",
+    "HP Sure Run Module",
+    "HP One Agent",
+    "HP Sure Recover",
+    "HP Wolf Security",
+    "HP Wolf Security - Console",
+    "HP Security Update Service",
+    "HP Notifications",
+    "HP Insights",
+    "HP Connection Optimizer",
+    "HP Desktop Support Utilities",
+    "HP Easy Clean",
+    "HP PC Hardware Diagnostics Windows",
+    "HP Privacy Settings",
+    "HP Support Assistant",
+    "myHP",
+    "Poly Lens"
+)
+$lenovoAppsToRemove = @(
+    "Lenovo Vantage",
+    "Lenovo System Update",
+    "Lenovo Utility",
+    "Lenovo Service Bridge",
+    "Lenovo Quick Clean",
+    "Lenovo Migration Assistant"
+)
 $progressTitle = "Created by Patrick Moon. Version: $versionNumber"
 
 #show progress
-function outputProgress {
+function OutputProgress {
     Param
     (
         [Parameter(Mandatory = $true, Position = 0)]
@@ -158,7 +186,6 @@ function Install-App {
         winget install $app --silent 
     }
 }
-
 function Install-Apps {
     param (
         [Parameter(Mandatory = $true)]
@@ -215,14 +242,13 @@ function Uninstall-Apps {
         }
     }
 }
-function runUpdates {
+function RunUpdates {
     Write-Progress -Activity "Getting the most current source list"
     winget source update
     Write-Progress -Activity "Updating the applications"
     winget update --all --silent
 }
-
-function powerSetup {
+function PowerSetup {
     powercfg.exe -x -monitor-timeout-ac 0
     powercfg.exe -x -monitor-timeout-dc 0
     powercfg.exe -x -disk-timeout-ac 0
@@ -232,6 +258,15 @@ function powerSetup {
     powercfg.exe -x -hibernate-timeout-ac 0
     powercfg.exe -x -hibernate-timeout-dc 0
     powercfg.exe -h off
+}
+function DoPublicDiscovery {
+    Set-NetFirewallRule -DisplayGroup "Network Discovery" -Enabled True -Profile Public
+    Set-NetFirewallRule -DisplayGroup "File And Printer Sharing" -Enabled True -Profile Public
+}
+function DoRemoteDesktop {
+    Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -value 0
+    Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+    Install-Apps -apps $remoteAccessApps
 }
 
 #check that we have current winget sources
@@ -271,7 +306,6 @@ else {
         $appsInstall = $false
     }
 }
-# Check for optional argument
 if ($args -contains "-o") {
     $optionalInstall = $true
 }
@@ -290,7 +324,6 @@ else {
         }
     }
 }
-# Check for dev argument
 $devInstall = $false
 if ($args -contains "-d") {
     $devInstall = $true
@@ -305,25 +338,55 @@ else {
         $devInstall = $true
     }
 }
-# Check for uninstall argument
 $uninstall = $false
 if ($args -contains "--uninstalls") {
     $uninstall = $true
+    $uninstallCommonApps = $true
+    $uninstallLenovoApps = $true
+    $uninstallDellApps = $true
+    $uninstallHpApps = $true
 }
 else {
-    Write-Host "Do you want to Uninstall the following programs?"
+    Write-Host "Do you want to uninstall common Windows applications?"
     for ($i = 0; $i -lt $appsToRemove.Length; $i++) {
         Write-Host "$i. $($appsToRemove[$i])" -ForegroundColor Red
     }
-    for ($i = $i; $i -lt $dellAppsToRemove.Length; $i++) {
+    $userInput = Read-Host "(y/N)"
+    if ($userInput -eq "y") {
+        $uninstall = $true
+        $uninstallCommonApps = $true
+    }
+
+    Write-Host "Do you want to uninstall Dell applications?"
+    for ($i = 0; $i -lt $dellAppsToRemove.Length; $i++) {
         Write-Host "$i. $($dellAppsToRemove[$i])" -ForegroundColor Red
     }
     $userInput = Read-Host "(y/N)"
     if ($userInput -eq "y") {
         $uninstall = $true
+        $uninstallDellApps = $true
+    }
+
+    Write-Host "Do you want to uninstall HP applications?"
+    for ($i = 0; $i -lt $hpAppsToRemove.Length; $i++) {
+        Write-Host "$i. $($hpAppsToRemove[$i])" -ForegroundColor Red
+    }
+    $userInput = Read-Host "(y/N)"
+    if ($userInput -eq "y") {
+        $uninstall = $true
+        $uninstallHpApps = $true
+    }
+
+    Write-Host "Do you want to uninstall Lenovo applications?"
+    for ($i = 0; $i -lt $lenovoAppsToRemove.Length; $i++) {
+        Write-Host "$i. $($lenovoAppsToRemove[$i])" -ForegroundColor Red
+    }
+    $userInput = Read-Host "(y/N)"
+    if ($userInput -eq "y") {
+        $uninstall = $true
+        $uninstallLenovoApps = $true
     }
 }
-#Check if we should also just run updates for applications still on the system
 $updates = $false
 if ($args -contains "--updates") {
     $updates = $true
@@ -334,21 +397,38 @@ else {
         $updates = $true
     }
 }
-
-# Check for power argument
 $powerAdjust = $false
 if ($args -contains "--power") {
     $powerAdjust = $true
-}
-else {
+} else {
     Write-Host "Do you want to power settings for maximum performance?"
     $userInput = Read-Host "(y/N)"
     if ($userInput -eq "y") {
         $powerAdjust = $true
     }
 }
-
-# Install applications
+$allowPublicDiscovery = $false
+if ($args -contains "--public") {
+    $allowPublicDiscovery = $true
+    
+} else {
+    Write-Host "Do you want to the computer to be discoverable on public networks?"
+    $publicDiscoveryInput = Read-Host "(y/N)"
+    if($publicDiscoveryInput -eq "y") {
+        $allowPublicDiscovery = $true
+    }
+}
+$allowRemoteDesktop = $false
+if ($args -contains "--remote") {
+    $allowRemoteDesktop = $true
+    
+} else {
+    Write-Host "Do you want to the computer to enable remote desktop and install vnc?"
+    $remoteDesktopInput = Read-Host "(y/N)"
+    if($remoteDesktopInput -eq "y") {
+        $allowRemoteDesktop = $true
+    }
+}
 if ($appsInstall) {
     Write-Host "Installing base applications... (if it pauses for a long time press y and then enter)"
     Install-Apps -apps $apps
@@ -363,8 +443,6 @@ if ($appsInstall) {
 else {
     Write-Host "Skipping base applications" -ForegroundColor Cyan
 }
-    
-# Install optional applications
 if ($optionalInstall) {
     Write-Output "Installing optional applications..."
     Install-Apps -apps $optionalApps
@@ -375,41 +453,52 @@ if ($optionalExtendedInstall) {
     Install-Apps -apps $optionalAppsWithComplications
     Write-Output "Done installing other optional applications!"
 }
-# Install dev applications
 if ($devInstall) {
     Write-Output "Installing Developer Applications..."
     Install-Apps -apps $devApps -source "winget"
     Write-Output "Done installing developer applications!"
 }
-
-# Remove apps
 if ($uninstall) {
-    Write-Output "Uninstalling general applications..."
-    Uninstall-Apps -apps $appsToRemove
-    Write-Output "Done Uninstalling general applications!"
-    Write-Output "Uninstalling Dell specific applications..."
-    Uninstall-Apps -apps $dellAppsToRemove
-    Write-Output "Done uninstalling applications!"
+    if ($uninstallCommonApps) {
+        Write-Output "Uninstalling general applications..."
+        Uninstall-Apps -apps $appsToRemove
+        Write-Output "Done uninstalling general applications!"
+    }
+    if ($uninstallDellApps) {
+        Write-Output "Uninstalling Dell specific applications..."
+        Uninstall-Apps -apps $dellAppsToRemove
+        Write-Output "Done uninstalling Dell applications!"
+    }
+    if ($uninstallHpApps) {
+        Write-Output "Uninstalling HP specific applications..."
+        Uninstall-Apps -apps $hpAppsToRemove
+        Write-Output "Done uninstalling HP applications!"
+    }
+    if ($uninstallLenovoApps) {
+        Write-Output "Uninstalling Lenovo specific applications..."
+        Uninstall-Apps -apps $lenovoAppsToRemove
+        Write-Output "Done uninstalling Lenovo applications!"
+    }
 }
 if ($updates) {
     Write-Output "Updating installed applications..."
-    runUpdates
+    RunUpdates
     Write-Output "Done updating installed applications!"
 }
 
-# update power settings
 if ($powerAdjust) {
     Write-Output "Updating power settings..."
-    powercfg.exe -x -monitor-timeout-ac 60
-    powercfg.exe -x -monitor-timeout-dc 60
-    powercfg.exe -x -disk-timeout-ac 0
-    powercfg.exe -x -disk-timeout-dc 0
-    powercfg.exe -x -standby-timeout-ac 0
-    powercfg.exe -x -standby-timeout-dc 0
-    powercfg.exe -x -hibernate-timeout-ac 0
-    powercfg.exe -x -hibernate-timeout-dc 0
-    powercfg.exe -h off
+    PowerSetup
     Write-Output "Done updating power settings!"
 }
 
-Write-Host "Completed." -ForegroundColor Cyan
+if ($allowPublicDiscovery) {
+   DoPublicDiscovery
+}
+
+if ($allowRemoteDesktop) {
+    DoRemoteDesktop
+}
+
+Write-Host "Completed" -ForegroundColor Cyan
+Pause
