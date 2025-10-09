@@ -35,7 +35,6 @@ Requires winget. Also you might need to run "Set-ExecutionPolicy Unrestricted" t
 #>
 # Check if we are running as administrator
 if (-NOT ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
-    # orginal: Start-Process -FilePath "powershell" -ArgumentList "-File .\coreSetup.ps1" -Verb RunAs
     # We are not running as administrator, so start a new process with 'RunAs'
     Start-Process powershell.exe "-File", ($myinvocation.MyCommand.Definition) -Verb RunAs
     exit
@@ -269,6 +268,35 @@ function DoRemoteDesktop {
     Install-Apps -apps $remoteAccessApps
 }
 
+function RemoveAndBlockNewOutlook {
+    # Path to the registry key
+    $regPath = "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\Orchestrator\UScheduler_Oobe"
+    
+    # Create the registry key if it doesn't exist
+    if (-not (Test-Path $regPath)) {
+        New-Item -Path $regPath -Force
+    }
+    
+    # Set the registry value to block new Outlook
+    $propertyName = "BlockedOobeUpdaters"
+    $propertyValue = "MS_Outlook"
+    
+    try {
+        # Attempt to set the property
+        Set-ItemProperty -Path $regPath -Name $propertyName -Value $propertyValue
+    } catch {
+        # If the property doesn't exist, create it
+        New-ItemProperty -Path $regPath -Name $propertyName -Value $propertyValue -PropertyType String -Force
+    }
+    
+    # Remove the new Outlook app if it's already installed
+    $outlookPackage = Get-AppxPackage -Name "Microsoft.OutlookForWindows"
+    if ($outlookPackage) {
+        Remove-AppxProvisionedPackage -AllUsers -Online -PackageName $outlookPackage.PackageFullName
+    }
+}
+
+
 #check that we have current winget sources
 Write-Host "updating winget sources"
 winget source update
@@ -429,12 +457,22 @@ if ($args -contains "--remote") {
         $allowRemoteDesktop = $true
     }
 }
+$allowRemoveAndBlockNewOutlook = $false
+if ($args -contains "--remove-new-outlook") {
+    $allowRemoveAndBlockNewOutlook = $true
+} else {
+    Write-Host "Do you want to remove and block new outlook?"
+    $removeNewOutlookInput = Read-Host "(y/N)"
+    if($removeNewOutlookInput -eq "y") {
+        $allowRemoveAndBlockNewOutlook = $true
+    }
+}
 if ($appsInstall) {
     Write-Host "Installing base applications... (if it pauses for a long time press y and then enter)"
     Install-Apps -apps $apps
     Write-Host "Done Installing base applications!"
     Write-Host "Installing base applications with special needs."
-    Install-Apps -apps $appThatNeedWingetSourceDeclared -source "winget"
+    Install-Apps -apps $appThatNeedWingetSourceDeclared -source "msstore"
     Write-Host "Done installing base applications with special needs."
     Write-Host "Installing base applications that require scope declaration."
     Install-Apps -apps $appsScopeRequired -source "winget" -scope "machine"
@@ -498,6 +536,10 @@ if ($allowPublicDiscovery) {
 
 if ($allowRemoteDesktop) {
     DoRemoteDesktop
+}
+
+if ($allowRemoveAndBlockNewOutlook) {
+    RemoveAndBlockNewOutlook
 }
 
 Write-Host "Completed" -ForegroundColor Cyan
