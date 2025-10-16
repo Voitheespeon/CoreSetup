@@ -47,7 +47,7 @@ if (-NOT ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdent
 $apps = @("Mozilla.Firefox")
 $appsScopeRequired = @("Google.Chrome")
 $appThatNeedWingetSourceDeclared = @("Adobe Acrobat Reader DC")
-$optionalApps = @("SonicWALL.NetExtender", "Microsoft.Powershell")
+$optionalApps = @("Microsoft.Powershell")
 $optionalAppsWithComplications = @("Microsoft 365")
 $devApps = @("git.git", "vscode", "github desktop", "JanDeDobbeleer.OhMyPosh", "nvm-windows")
 $remoteAccessApps = @("tightvnc")
@@ -315,6 +315,8 @@ if ($args -contains "--noauto") {
 $appsInstall = $true
 $optionalInstall = $false
 $optionalExtendedInstall = $false
+$uninstallCommonApps = $true
+$allowRemoveAndBlockNewOutlook = $true
 if ($args -contains "--basic") {
     $appsInstall = $true
 }
@@ -367,6 +369,8 @@ else {
     }
 }
 $uninstall = $false
+
+
 if ($args -contains "--uninstalls") {
     $uninstall = $true
     $uninstallCommonApps = $true
@@ -379,10 +383,10 @@ else {
     for ($i = 0; $i -lt $appsToRemove.Length; $i++) {
         Write-Host "$i. $($appsToRemove[$i])" -ForegroundColor Red
     }
-    $userInput = Read-Host "(y/N)"
-    if ($userInput -eq "y") {
+    $userInput = Read-Host "(Y/n)"
+    if ($userInput -eq "n") {
         $uninstall = $true
-        $uninstallCommonApps = $true
+        $uninstallCommonApps = $false
     }
 
     Write-Host "Do you want to uninstall Dell applications?"
@@ -457,14 +461,14 @@ if ($args -contains "--remote") {
         $allowRemoteDesktop = $true
     }
 }
-$allowRemoveAndBlockNewOutlook = $false
+
 if ($args -contains "--remove-new-outlook") {
-    $allowRemoveAndBlockNewOutlook = $true
+    $allowRemoveAndBlockNewOutlook = $false
 } else {
     Write-Host "Do you want to remove and block new outlook?"
-    $removeNewOutlookInput = Read-Host "(y/N)"
-    if($removeNewOutlookInput -eq "y") {
-        $allowRemoveAndBlockNewOutlook = $true
+    $removeNewOutlookInput = Read-Host "(Y/n)"
+    if($removeNewOutlookInput -eq "n") {
+        $allowRemoveAndBlockNewOutlook = $false
     }
 }
 if ($appsInstall) {
